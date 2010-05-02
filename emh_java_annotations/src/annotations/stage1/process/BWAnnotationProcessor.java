@@ -30,9 +30,14 @@ import staticproxy.util.ClassName;
 
 import com.sun.source.util.Trees;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeTranslator;
+import com.sun.tools.javac.tree.JCTree.JCClassDecl;
 import com.sun.tools.javac.tree.JCTree.JCCompilationUnit;
+import com.sun.tools.javac.tree.JCTree.JCIdent;
 
 import exceptions.FatalHandler;
+
+// TODO: refactor into smaller classes
 
 @SupportedAnnotationTypes(value = { "annotations.stage1.defs.*" })
 @SupportedSourceVersion(SourceVersion.RELEASE_6)
@@ -40,7 +45,7 @@ public class BWAnnotationProcessor extends AbstractProcessor {
 
 	protected Trees trees;
 	protected ProcessingEnvironment processingEnv;
-	HashMap<String, JavaSourceTransformation> transforms = new HashMap<String, JavaSourceTransformation>();
+	protected HashMap<String, JavaSourceTransformation> transforms = new HashMap<String, JavaSourceTransformation>();
 	protected JCCompilationUnit currentCompilationUnit;
 
 	public static String getPackage(Element cls) {
@@ -56,9 +61,8 @@ public class BWAnnotationProcessor extends AbstractProcessor {
 		try {
 			srcfile = this.processingEnv.getFiler().createResource(
 					StandardLocation.SOURCE_OUTPUT,
-					ClassName.getPackageName(qualifiedName), 
-					ClassName.getRelativeName(qualifiedName) + "." + extension
-					);
+					ClassName.getPackageName(qualifiedName),
+					ClassName.getRelativeName(qualifiedName) + "." + extension);
 		} catch (FilerException e1) {
 			if (!e1.getMessage().matches("Attempt to recreate a file.*")) {
 				e1.printStackTrace();
@@ -68,7 +72,7 @@ public class BWAnnotationProcessor extends AbstractProcessor {
 		}
 		return srcfile;
 	}
-	
+
 	public JavaFileObject createSourceFile(String className) {
 		JavaFileObject srcfile = null;
 		try {
@@ -99,13 +103,14 @@ public class BWAnnotationProcessor extends AbstractProcessor {
 			} catch (ClassNotFoundException e) {
 				// try to make binary form of name and look up again
 				String[] parts = name.split("\\.");
-				String newname = name.substring(0, name.length() - parts[parts.length - 1].length() - 1)
-						 		+ "$" + parts[parts.length - 1];
-				
-				//name.replaceFirst("\\.\\([^\\.]*\\)$", "$\\1");
-				//System.out.println("newname: " + newname);
+				String newname = name.substring(0, name.length()
+						- parts[parts.length - 1].length() - 1)
+						+ "$" + parts[parts.length - 1];
+
+				// name.replaceFirst("\\.\\([^\\.]*\\)$", "$\\1");
+				// System.out.println("newname: " + newname);
 				if (!newname.equals(name)) {
-					//System.out.println("newname: " + newname);
+					// System.out.println("newname: " + newname);
 					name = newname;
 				} else {
 					FatalHandler.handle("failed to load class: " + origname, e);
@@ -115,28 +120,44 @@ public class BWAnnotationProcessor extends AbstractProcessor {
 		return ret;
 	}
 
-	private JavaFileObject getCurrentSourceFile() {
+	protected JavaFileObject getCurrentSourceFile() {
 		if (this.currentCompilationUnit == null) {
-			throw new IllegalStateException("must set currentCompilationUnit") ;
+			throw new IllegalStateException("must set currentCompilationUnit");
 		}
 		return this.currentCompilationUnit.getSourceFile();
 	}
 
 	public JavaSourceTransformation getNewCurrentTransform() {
-		String fpath = getCurrentSourceFile().toString();
 		JavaSourceTransformation transform = null;
 		try {
-			transform = new JavaSourceTransformation(new File(fpath));
+			transform = new JavaSourceTransformation(
+					this.currentCompilationUnit.getPackageName().toString(),
+					getCurrentSourceFile());
 		} catch (IOException e) {
 			FatalHandler.handle(e);
 		}
 		return transform;
 	}
-	
+
+	/**
+	 * Was last source file processed modified?
+	 * 
+	 * @return
+	 */
+	public boolean wasChanged() {
+		return hasCurrentTransform();
+	}
+
+	public boolean hasCurrentTransform() {
+		String fpath = getCurrentSourceFile().toString();
+		return this.transforms.containsKey(fpath);
+	}
+
 	public JavaSourceTransformation getCurrentTransform() {
 		String fpath = getCurrentSourceFile().toString();
+		System.out.println("mktran:" + fpath);
 		JavaSourceTransformation transform = null;
-		if (this.transforms.containsKey(fpath)) {
+		if (hasCurrentTransform()) {
 			transform = this.transforms.get(fpath);
 		} else {
 			transform = getNewCurrentTransform();
@@ -156,13 +177,9 @@ public class BWAnnotationProcessor extends AbstractProcessor {
 	/**
 	 * Supports 2 naming schemes
 	 * 
-	 * If forClassName ends with In:
-	 * Input: control.TestIn
-	 * Output: control.Test
+	 * If forClassName ends with In: Input: control.TestIn Output: control.Test
 	 * 
-	 * Otherwise:
-	 * Input: control.Test
-	 * Output: control.TestGen
+	 * Otherwise: Input: control.Test Output: control.TestGen
 	 * 
 	 * @param forClassName
 	 * @return
@@ -195,47 +212,38 @@ public class BWAnnotationProcessor extends AbstractProcessor {
 	public boolean process(Set<? extends TypeElement> annotations,
 			RoundEnvironment roundEnv) {
 
-		//		for (TypeElement element : annotations) {
-		//			//			if (element instanceof TypeDef) {
-		//			//				TypeDef td =
-		//			//			}
-		//			System.out.println(element.getClass());
-		//			System.out.println(element.getQualifiedName());
-		//			System.out.println(element.getEnclosedElements());
-		//		}
+		// for (TypeElement element : annotations) {
+		// // if (element instanceof TypeDef) {
+		// // TypeDef td =
+		// // }
+		// System.out.println(element.getClass());
+		// System.out.println(element.getQualifiedName());
+		// System.out.println(element.getEnclosedElements());
+		// }
 
-		//boolean processAnnotations = this.processingEnv.getOptions().containsKey("stage1");
-		
+		// boolean processAnnotations =
+		// this.processingEnv.getOptions().containsKey("stage1");
+
 		if (!roundEnv.processingOver()) {
 
-			//if (processAnnotations) {
+			// if (processAnnotations) {
 			System.out.println("Processing annotations");
 			for (TypeElement element : annotations) {
 				System.out.println("doing @" + element.getQualifiedName());
 				Class<Annotation> annotation = null;
 				try {
-					annotation = (Class<Annotation>) Class.forName(element.getQualifiedName().toString());
+					annotation = (Class<Annotation>) Class.forName(element
+							.getQualifiedName().toString());
 				} catch (ClassNotFoundException e) {
 					FatalHandler.handle(e);
 				}
 				processAnnotation(annotation, roundEnv);
 			}
-			//}
+			// }
 
 		} else {
-			
-			for (JavaSourceTransformation transform : this.transforms.values()) {
-				try {
-					System.out.printf("DUMP(%s):\n%s", transform.getFile(),
-							transform.getTransformed());
-				} catch (IOException e) {
-					System.out.printf("error transforming \"%s\": %s\n",
-							transform.getFile(), e);
-				}
-				//transform.getFile()
-				//				String className = "";
-				//				createSourceFile(className);
-			}
+
+			generateSources();
 			// this.processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE,
 			// this.tally + " roman numerals processed.");
 		}
@@ -243,12 +251,49 @@ public class BWAnnotationProcessor extends AbstractProcessor {
 		// claim the annotations so nobody else will see them
 		return true;
 	}
-		
+	
+	//public static String strip
+	
+	private void generateSources() {
+		System.out.println("Generating sources");
+		for (JavaSourceTransformation transform : this.transforms.values()) {
+			
+			this.currentCompilationUnit.getPackageName();
+			String pubClassName = getBaseClass(transform.getFile());
+			String newPubClassName = transform.getPackageName() + "." + getGeneratedName(pubClassName); 
+			
+			System.out.printf("writing: %s\n", newPubClassName);
+//			sgen.setPackageName(ClassName.getPackageName(className));
+//			sgen.setProxyName(simpleName);
+
+			JavaFileObject srcfile = createSourceFile(newPubClassName);
+			PrintWriter srcpw = null;
+			try {
+				srcpw = new PrintWriter(srcfile.openWriter());
+				srcpw.print(transform.getTransformed());
+			} catch (IOException e1) {
+				FatalHandler.handle("couldn't write source class: " + newPubClassName, e1);
+			}
+			srcpw.close();
+			
+//			try {
+//				System.out.printf("DUMP(%s):\n%s", transform.getFile(),
+//						transform.getTransformed());
+//			} catch (IOException e) {
+//				System.out.printf("error transforming \"%s\": %s\n",
+//						transform.getFile(), e);
+//			}
+			// transform.getFile()
+			// String className = "";
+			// createSourceFile(className);
+		}		
+	}
+
 	public Writer createXmlResource(Element e) {
 		String xmlname = ((TypeElement) e).getQualifiedName().toString();
 		FileObject jsrc = createResource(xmlname, "xml");
-		System.out.printf("writing %s\n", xmlname + ".xml");
-		//getTransform().substring(beginIndex, endIndex);
+		//System.out.printf("writing %s\n", xmlname + ".xml");
+		// getTransform().substring(beginIndex, endIndex);
 		PrintWriter pw = null;
 		try {
 			pw = new PrintWriter(jsrc.openWriter());
@@ -258,22 +303,27 @@ public class BWAnnotationProcessor extends AbstractProcessor {
 		return pw;
 	}
 
-	public void processAnnotation(Class<? extends Annotation> annotationclass, RoundEnvironment roundEnv) {
+	public void processAnnotation(Class<? extends Annotation> annotationclass,
+			RoundEnvironment roundEnv) {
 		System.out.printf("working: %s\n", annotationclass);
-		Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(annotationclass);
+		Set<? extends Element> elements = roundEnv
+				.getElementsAnnotatedWith(annotationclass);
 
 		for (Element element : elements) {
 			Annotation annotation = element.getAnnotation(annotationclass);
-			BindTransformer btf = annotationclass.getAnnotation(BindTransformer.class);
+			BindTransformer btf = annotationclass
+					.getAnnotation(BindTransformer.class);
 
 			boolean elementHasAnnotation = (annotation != null);
 			// TODO: use @Target on the annotations instead
 			boolean elementIsClass = (element.getKind() == ElementKind.CLASS);
-			boolean annotationHasProcessor = (btf != null) && (btf.value() != null);
-			System.out.printf("@%s(%s): hasAnnotation=%s, isClass=%s, hasProcessor=%s\n",
-					annotationclass.getName(),
-					element.getSimpleName().toString(),
-					elementHasAnnotation, elementIsClass, annotationHasProcessor);
+			boolean annotationHasProcessor = (btf != null)
+					&& (btf.value() != null);
+			System.out.printf(
+					"@%s(%s): hasAnnotation=%s, isClass=%s, hasProcessor=%s\n",
+					annotationclass.getName(), element.getSimpleName()
+							.toString(), elementHasAnnotation, elementIsClass,
+					annotationHasProcessor);
 
 			if (elementHasAnnotation && elementIsClass & annotationHasProcessor) {
 
@@ -287,82 +337,121 @@ public class BWAnnotationProcessor extends AbstractProcessor {
 					FatalHandler.handle(e);
 				}
 				this.currentCompilationUnit = (JCCompilationUnit) this.trees
-				.getPath(element).getCompilationUnit();
-				
-				transformer = transformer.init(getNewCurrentTransform(), 
-						this, annotation, element);
+						.getPath(element).getCompilationUnit();
 
-				//	System.out.printf("name of %s: %s\n", element.getClass(), element
-				//	.getSimpleName());
+				transformer = transformer.init(getNewCurrentTransform(), this,
+						annotation, element);
+
+				// System.out.printf("name of %s: %s\n", element.getClass(),
+				// element
+				// .getSimpleName());
 				// getSourceFile(each);
 
 				JCTree tree = (JCTree) this.trees.getTree(element);
-				//System.out.printf("classname: %s\n", element.getSimpleName());
+				// System.out.printf("classname: %s\n",
+				// element.getSimpleName());
 				// System.out.printf("name: %s\n", ((JCClassDecl)
 				// tree).get);
 
 				// we need the end positions for replacing code
 				if (this.currentCompilationUnit.endPositions == null) {
 					throw new RuntimeException(
-					"you need to supply -Xjcov option to javac");
+							"you need to supply -Xjcov option to javac");
 				}
 
 				tree.accept(transformer);
+				
+				if (wasChanged()) {
+					
+					final JavaSourceTransformation transform = getCurrentTransform();
+					
+					final String pubClassName = getBaseClass(getCurrentSourceFile());
+					final String newPubClassName = getGeneratedName(pubClassName);
+					
+					tree.accept(new TreeTranslator() {
+
+						@Override
+						public void visitClassDef(JCClassDecl tree) {
+							if (tree.name.toString().equals(pubClassName)) {
+								transform.addReplaceIn(BWAnnotationProcessor.this, 
+										tree, pubClassName, newPubClassName);
+							}
+							super.visitClassDef(tree);
+						}
+
+						@Override
+						public void visitIdent(JCIdent tree) {
+							// TODO Auto-generated method stub
+							super.visitIdent(tree);
+						}
+						
+					});
+					
+				}
 				// System.out.println(tree);
 			}
 		}
 	}
+	
+	/**
+	 * src/a/b/c/Main.java -> Main
+	 */
+	public String getBaseClass(JavaFileObject fpath) {
+		return new File(fpath.toString()).getName().replaceFirst("\\.java$", "");
+	}
 
 	/**
-	 * Insert string in source file.
-	 * Strings at same position appear in order of insertion.
+	 * Insert string in source file. Strings at same position appear in order of
+	 * insertion.
+	 * 
 	 * @param pos
 	 * @param insert
 	 */
 	public void insertAt(int pos, String insert) {
-		JavaSourceReplacement repl = new JavaSourceReplacement(
-				pos, 
-				pos,
-				insert);
-		getCurrentTransform().add(repl);	
+		JavaSourceReplacement repl = new JavaSourceReplacement(pos, pos, insert);
+		getCurrentTransform().add(repl);
 	}
-	
+
 	public void replace(JCTree tree, String replacement) {
 		JavaSourceReplacement repl = new JavaSourceReplacement(tree
 				.getStartPosition(), getEndPos(tree), replacement);
 		getCurrentTransform().add(repl);
 	}
-	
-	public Class<?>
-	getAnnotationClassValue(Element e, Annotation a, String classAttribute) {
-	e.getAnnotationMirrors();
-	
-	// find TypeMirror for Annotation
-	for (AnnotationMirror tm : e.getAnnotationMirrors()) {
-//		System.out.printf("tm: %s, %s, %s\n", 
-//				tm.getAnnotationType().toString(),
-//				a.annotationType().toString(),
-//				
-//				);
 
-		if (tm.getAnnotationType().toString().equals(a.annotationType().getName())) {
-			// find class attribute
-			
-			for (Entry<? extends ExecutableElement, ? extends AnnotationValue> entry : 
-				this.processingEnv.getElementUtils().getElementValuesWithDefaults(tm).entrySet()
-				) {
-				System.out.printf("%s?=%s %s\n", classAttribute, 
-						entry.getKey().getSimpleName(), entry.getValue());
-				if (entry.getKey().getSimpleName().toString().equals(classAttribute)) {
-					System.out.println("helo: " + entry.getValue().getValue());
-					return getClass(entry.getValue().getValue().toString());
+	public Class<?> getAnnotationClassValue(Element e, Annotation a,
+			String classAttribute) {
+		e.getAnnotationMirrors();
+
+		// find TypeMirror for Annotation
+		for (AnnotationMirror tm : e.getAnnotationMirrors()) {
+			// System.out.printf("tm: %s, %s, %s\n",
+			// tm.getAnnotationType().toString(),
+			// a.annotationType().toString(),
+			//				
+			// );
+
+			if (tm.getAnnotationType().toString().equals(
+					a.annotationType().getName())) {
+				// find class attribute
+
+				for (Entry<? extends ExecutableElement, ? extends AnnotationValue> entry : this.processingEnv
+						.getElementUtils().getElementValuesWithDefaults(tm)
+						.entrySet()) {
+//					System.out.printf("%s?=%s %s\n", classAttribute, entry
+//							.getKey().getSimpleName(), entry.getValue());
+					if (entry.getKey().getSimpleName().toString().equals(
+							classAttribute)) {
+//						System.out.println("helo: "
+//								+ entry.getValue().getValue());
+						return getClass(entry.getValue().getValue().toString());
+					}
 				}
+				throw new RuntimeException(
+						"bug2. use correct annotation attributes");
 			}
-			throw new RuntimeException("bug2. use correct annotation attributes");
 		}
+		throw new RuntimeException("bug. use correct annotation attributes");
+		// return this.processor.getClass(name);
 	}
-	throw new RuntimeException("bug. use correct annotation attributes");
-	//return this.processor.getClass(name);
-}
 
 }

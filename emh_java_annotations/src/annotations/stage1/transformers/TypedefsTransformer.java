@@ -11,7 +11,10 @@ import annotations.stage1.process.BWAnnotationProcessor;
 import annotations.stage1.process.JavaSourceTransformation;
 import annotations.stage1.process.Transformer;
 
+import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.JCTree.JCIdent;
+import com.sun.tools.javac.tree.JCTree.JCPrimitiveTypeTree;
+import com.sun.tools.javac.tree.JCTree.JCVariableDecl;
 
 public class TypedefsTransformer extends Transformer {
 
@@ -32,31 +35,53 @@ public class TypedefsTransformer extends Transformer {
 		return this;
 	}
 	
-	@Override
-	public void visitIdent(JCIdent tree) {
-		String name = tree.getName().toString();
+	public void doReplace(JCTree tree, String name) {
+		//String name = tree.getName().toString();
 		System.out.printf("name=%s, start-end=%d-%d, src=%s\n", name,
 				this.processor.getStartPos(tree), this.processor.getEndPos(tree), "");
 		if (this.typedefs.containsKey(name)) {
-			this.processor.replace(tree, this.typedefs.get(name));
+			System.out.println("match");
+			String replacement = this.typedefs.get(name);
+			this.processor.replace(tree, replacement);
+		}
+	}
+	
+	@Override
+	public void visitIdent(JCIdent tree) {
+		//if (tree.type != null) {
+		//System.out.printf("%s/%s/%s\n", tree.name, tree.sym, tree.type);
+		//}
+		if (tree.sym == null && tree.type == null) {
+			doReplace(tree, tree.getName().toString());
 		}
 		super.visitIdent(tree);
 	}
 
-	/*
 	@Override
-	public void visitVarDef(JCVariableDecl tree) {
-		String name = tree.getName().toString();
-		System.out.printf("tree=%s, name=%s\n", tree.toString(), tree
-				.getName());
-		// TODO: get source code and do a text substitution
-		if (this.typedefs.containsKey(name)) {
-			String replacement = this.typedefs.get(name);
-			replacement = tree.toString().replace(name, replacement);
-			this.processor.replace(tree, replacement);
+	public void visitTypeIdent(JCPrimitiveTypeTree tree) {
+		// TODO Auto-generated method stub
+		System.out.printf("%s/%s\n", tree.type, tree.typetag);
+		if (tree.type != null) {
+			doReplace(tree, tree.type.toString());
 		}
-		super.visitVarDef(tree);
+		super.visitTypeIdent(tree);
 	}
-	 */
+
+	// ident covers it
+//	@Override
+//	public void visitVarDef(JCVariableDecl tree) {
+//		String name = tree.vartype.toString(); //tree.getName().toString();
+//		System.out.printf("tree=%s, name=%s\n", tree.toString(), name);
+//		// TODO: get source code and do a text substitution
+//		if (this.typedefs.containsKey(name)) {
+//			System.out.println("match2");
+//			String replacement = this.typedefs.get(name);
+//			replacement = tree.toString().replace(name, replacement);
+//			this.processor.getCurrentTransform().addReplaceIn(
+//					this.processor, tree, 
+//					name, this.typedefs.get(name));
+//		}
+//		super.visitVarDef(tree);
+//	}
 
 }

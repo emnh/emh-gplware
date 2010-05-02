@@ -38,14 +38,14 @@ public class VirtualAspectProxySourceGenerator extends VirtualProxySourceGenerat
 //		}
 	}
 
-	@Override
-	protected void addImports(PrintWriter out) {
-		super.addImports(out);
-		indentSame(out); 
-		out.printf("import %s;", MethodInspector.class.getName());
-		newLine(out);
-		newLine(out);
-	}
+//	@Override
+//	protected void addImports(PrintWriter out) {
+//		super.addImports(out);
+//		indentSame(out); 
+//		out.printf("import %s;", MethodInspector.class.getName());
+//		newLine(out);
+//		newLine(out);
+//	}
 
 
 	@Override

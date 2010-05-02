@@ -1,5 +1,8 @@
 package annotations.stage1.process;
 
+import java.io.IOException;
+import java.io.Writer;
+
 public class JavaSourceReplacement implements Comparable<JavaSourceReplacement> {
 	public long startpos;
 	public long endpos;
@@ -31,4 +34,18 @@ public class JavaSourceReplacement implements Comparable<JavaSourceReplacement> 
 	public long getInsertionOrder() {
 		return insertionOrder;
 	}
+	
+	public void apply(Writer out) throws IOException {
+		out.append(replacement);
+	}
+
+	@Override
+	public String toString() {
+		return "JavaSourceReplacement [endpos=" + endpos + ", insertionOrder="
+				+ insertionOrder + ", replacement=" + replacement
+				+ ", startpos=" + startpos + "]";
+	}
+	
+	
+	
 }

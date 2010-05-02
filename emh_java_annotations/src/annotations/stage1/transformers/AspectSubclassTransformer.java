@@ -3,31 +3,17 @@ package annotations.stage1.transformers;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.annotation.Annotation;
-import java.util.Map.Entry;
 
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.type.MirroredTypeException;
-import javax.lang.model.type.TypeMirror;
 import javax.tools.JavaFileObject;
 
 import staticproxy.util.ClassName;
 import staticproxy.util.proxy.ProxySourceGeneratorFactory;
 import staticproxy.util.proxy.VirtualProxySourceGenerator;
-import annotations.stage1.defs.AspectSubclass;
 import annotations.stage1.process.BWAnnotationProcessor;
 import annotations.stage1.process.JavaSourceTransformation;
 import annotations.stage1.process.Transformer;
-
-import com.sun.tools.javac.tree.JCTree.Visitor;
-
 import exceptions.FatalHandler;
-
-class Bogus2 extends Visitor {
-	
-}
 
 public class AspectSubclassTransformer extends Transformer {
 	
@@ -48,24 +34,7 @@ public class AspectSubclassTransformer extends Transformer {
 		VirtualProxySourceGenerator sgen = null;
 		
 		subject = processor.getAnnotationClassValue(e, a, "value");
-		generator = processor.getAnnotationClassValue(e, a, "generator");
-		
-		//processor.getClass(Visitor.class.toString().replace('$', '.'));
-		
-		// standard procedure for getting class parameters from Annotation		
-//		try {
-//			subject = a2.value();
-//		} catch (MirroredTypeException e1) {
-//			TypeMirror tm = e1.getTypeMirror();
-//			subject = processor.getClass(tm.toString());
-//		}
-//		try {
-//			generator = a2.generator();
-//		} catch (MirroredTypeException e1) {
-//			TypeMirror tm = e1.getTypeMirror();
-//			generator = processor.getClass(tm.toString());
-//		}
-		
+		generator = processor.getAnnotationClassValue(e, a, "generator");		
 		
 		try {
 			sgen = ((ProxySourceGeneratorFactory) generator.newInstance()).
@@ -76,9 +45,7 @@ public class AspectSubclassTransformer extends Transformer {
 		} catch (IllegalAccessException e2) {
 			// TODO Auto-generated catch block
 			e2.printStackTrace();
-		}
-		
-		//StaticProxy annotation = realSubject.getAnnotation(StaticProxy.class);		
+		}		
 
 		//		System.out.printf("src class name: %s\n", className);
 		//		System.out.printf("subject: %s\n", subject);
@@ -96,7 +63,6 @@ public class AspectSubclassTransformer extends Transformer {
 			FatalHandler.handle("couldn't write class: " + className, e1);
 		}
 		sgen.generateProxyClass(srcpw);
-		srcpw.printf("public class %s {}\n", simpleName);
 		srcpw.close();
 		return this;
 	}
