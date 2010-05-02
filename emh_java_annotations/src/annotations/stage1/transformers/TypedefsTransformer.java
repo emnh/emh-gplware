@@ -14,11 +14,13 @@ import annotations.stage1.process.Transformer;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.JCTree.JCIdent;
 import com.sun.tools.javac.tree.JCTree.JCPrimitiveTypeTree;
+import com.sun.tools.javac.tree.JCTree.JCTypeApply;
 import com.sun.tools.javac.tree.JCTree.JCVariableDecl;
 
 public class TypedefsTransformer extends Transformer {
 
 	protected HashMap<String, String> typedefs = null;
+	boolean claimed = false;
 
 	@Override
 	public TypedefsTransformer init(
@@ -35,7 +37,7 @@ public class TypedefsTransformer extends Transformer {
 		return this;
 	}
 	
-	public void doReplace(JCTree tree, String name) {
+	public boolean doReplace(JCTree tree, String name) {
 		//String name = tree.getName().toString();
 		System.out.printf("name=%s, start-end=%d-%d, src=%s\n", name,
 				this.processor.getStartPos(tree), this.processor.getEndPos(tree), "");
@@ -43,7 +45,9 @@ public class TypedefsTransformer extends Transformer {
 			System.out.println("match");
 			String replacement = this.typedefs.get(name);
 			this.processor.replace(tree, replacement);
+			return true;
 		}
+		return false;
 	}
 	
 	@Override
@@ -51,7 +55,7 @@ public class TypedefsTransformer extends Transformer {
 		//if (tree.type != null) {
 		//System.out.printf("%s/%s/%s\n", tree.name, tree.sym, tree.type);
 		//}
-		if (tree.sym == null && tree.type == null) {
+		if (!claimed && tree.sym == null && tree.type == null) {
 			doReplace(tree, tree.getName().toString());
 		}
 		super.visitIdent(tree);
@@ -61,12 +65,20 @@ public class TypedefsTransformer extends Transformer {
 	public void visitTypeIdent(JCPrimitiveTypeTree tree) {
 		// TODO Auto-generated method stub
 		System.out.printf("%s/%s\n", tree.type, tree.typetag);
-		if (tree.type != null) {
+		if (!claimed && tree.type != null) {
 			doReplace(tree, tree.type.toString());
 		}
 		super.visitTypeIdent(tree);
 	}
 
+	@Override
+	public void visitTypeApply(JCTypeApply tree) {
+		claimed = doReplace(tree, tree.toString());
+		super.visitTypeApply(tree);
+		claimed = false;
+	}
+	
+	
 	// ident covers it
 //	@Override
 //	public void visitVarDef(JCVariableDecl tree) {
