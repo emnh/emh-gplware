@@ -1,0 +1,1 @@
+Collection of scripts and personal projects too small to deserve their own project yet and technical articles and notes.
